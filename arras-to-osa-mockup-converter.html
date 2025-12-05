@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+    <head>
+
+    </head>
+    <body>
+        <table>
+            <tr>
+                <th colspan="2">DogeisCut's Arras to OSA Mockup Converter</th>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <label for="fileUpload">Input Python Mockups</label>
+                    <input id="fileUpload" type="file">
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <!--Snaps numbers like 2.0000258973285 to 2, and numbers like 3.499999879048 to 3.5 without rounding.-->
+                    <input id="optionDecimalSnapping" type="checkbox">
+                    <label for="optionDecimalSnapping">Decimal Snapping</label>
+                </td>
+                <td>
+                    <!--Attempts to make decimals more readable by compressing them into math expressions (Division, Reciprocals, Math.pi, Math.sqrt, SQRT2, SQRT1_2, etc.). May contain false positives.-->
+                    <!--TODO: control over which math functions it tries to use.-->
+                    <input id="optionMathReadability" type="checkbox">
+                    <label for="optionMathReadability">Math Readability</label>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <button id="submitButton">Submit</button>
+                </td>
+            </tr>
+        </table>
+
+    
+        <script>
+            /*
+                ARRAS TO OSA MOCKUP CONVERTER
+                By: Dogeiscut
+                
+                Instructions: Upload a mockup python file with the imports at the top removed, then click submit. 
+                You will recive a JS file with skeleton definitions based on the mockups.
+            */
+
+            const optionDecimalSnapping = document.getElementById("optionDecimalSnapping")
+            const optionMathReadability = document.getElementById("optionMathReadability")
+
+            let decimalSnapping = false
+            let mathReadability = false
+
+            optionDecimalSnapping.addEventListener("change", () => {
+                decimalSnapping = optionDecimalSnapping.checked
+            });
+            optionMathReadability.addEventListener("change", () => {
+                mathReadability = optionMathReadability.checked
+            });
+
+
+            function tokenizePythonLikeMockups(inputText) {
+                const tokenList = []
+                let currentIndex = 0
+
+                function isWhitespace(ch) {
+                    return /\s/.test(ch)
+                }
+
+                function isDigit(ch) {
+                    return /[0-9]/.test(ch)
+                }
+
+                function isIdentifierStart(ch) {
+                    return /[A-Za-z_]/.test(ch)
+                }
+
+                function isIdentifierPart(ch) {
+                    return /[A-Za-z0-9_]/.test(ch)
+                }
+
+                while (currentIndex < inputText.length) {
+                    const ch = inputText[currentIndex]
+
+                    if (isWhitespace(ch)) {
+                        currentIndex++
+                        continue
+                    }
+
+                    if (ch === "'" || ch === '"') {
+                        const quote = ch
+                        const start = currentIndex
+                        currentIndex++
+                        while (currentIndex < inputText.length && inputText[currentIndex] !== quote) {
+                            currentIndex++
+                        }
+                        currentIndex++
+                        tokenList.push({
+                            type: "string",
+                            value: inputText.slice(start + 1, currentIndex - 1)
+                        })
+                        continue
+                    }
+
+                    if (isDigit(ch) || (ch === '-' && isDigit(inputText[currentIndex + 1]))) {
+                        const start = currentIndex
+                        currentIndex++
+                        while (currentIndex < inputText.length && /[0-9eE+\-\.]/.test(inputText[currentIndex])) {
+                            currentIndex++
+                        }
+                        tokenList.push({
+                            type: "number",
+                            value: parseFloat(inputText.slice(start, currentIndex))
+                        })
+                        continue
+                    }
+
+                    if (isIdentifierStart(ch)) {
+                        const start = currentIndex
+                        currentIndex++
+                        while (currentIndex < inputText.length && isIdentifierPart(inputText[currentIndex])) {
+                            currentIndex++
+                        }
+                        tokenList.push({
+                            type: "identifier",
+                            value: inputText.slice(start, currentIndex)
+                        })
+                        continue
+                    }
+
+                    tokenList.push({
+                        type: "symbol",
+                        value: ch
+                    })
+                    currentIndex++
+                }
+
+                return tokenList
+            }
+
+            function parsePythonLikeMockups(tokenList) {
+                let index = 0
+
+                function peek() {
+                    return tokenList[index]
+                }
+
+                function next() {
+                    return tokenList[index++]
+                }
+
+                function parseValue() {
+                    const tok = peek()
+                    if (!tok) return null
+
+                    if (tok.type === "number") {
+                        next()
+                        return tok.value
+                    }
+
+                    if (tok.type === "string") {
+                        next()
+                        return tok.value
+                    }
+
+                    if (tok.type === "identifier") {
+                        if (tok.value === "True") {
+                            next()
+                            return true
+                        }
+                        if (tok.value === "False") {
+                            next()
+                            return false
+                        }
+                        if (tok.value === "None") {
+                            next()
+                            return null
+                        }
+                        const name = tok.value
+                        next()
+                        const nextTok = peek()
+                        if (nextTok && nextTok.value === "(") {
+                            return parseFunctionLike(name)
+                        }
+                        return name
+                    }
+
+                    if (tok.type === "symbol" && tok.value === "{") {
+                        return parseDict()
+                    }
+
+                    if (tok.type === "symbol" && tok.value === "[") {
+                        return parseList()
+                    }
+
+                    next()
+                    return null
+                }
+
+                function parseDict() {
+                    const result = {}
+                    next()
+                    while (peek() && peek().value !== "}") {
+                        const keyTok = next()
+                        const keyName = keyTok.value
+                        next()
+                        const val = parseValue()
+                        result[keyName] = val
+                        if (peek() && peek().value === ",") next()
+                    }
+                    next()
+                    return result
+                }
+
+                function parseList() {
+                    const arr = []
+                    next()
+                    while (peek() && peek().value !== "]") {
+                        const v = parseValue()
+                        arr.push(v)
+                        if (peek() && peek().value === ",") next()
+                    }
+                    next()
+                    return arr
+                }
+
+                function parseFunctionLike(name) {
+                    next()
+                    const obj = { type: name }
+                    while (peek() && peek().value !== ")") {
+                        const keyTok = next()
+                        const keyName = keyTok.value
+                        next()
+                        const val = parseValue()
+                        obj[keyName] = val
+                        if (peek() && peek().value === ",") next()
+                    }
+                    next()
+                    return obj
+                }
+
+                const parsedList = []
+                while (peek()) {
+                    const v = parseValue()
+                    if (v && typeof v === "object" && v.type === "Mockup") {
+                        parsedList.push(v)
+                    }
+                }
+
+                return parsedList
+            }
+
+            function convertParsedMockups(parsedMockupList) {
+                const convertedList = []
+                const generatedIdMap = {}
+                const mockupIdToGeneratedId = {}
+
+                function createIdFromLabel(labelText) {
+                    const cleanedLabel = labelText
+                        .replace(/[^A-Za-z0-9]+/g, " ")
+                        .trim()
+                        .split(" ")
+
+                    let camel = ""
+
+                    for (let i = 0; i < cleanedLabel.length; i++) {
+                        const part = cleanedLabel[i]
+                        if (i === 0) {
+                            camel += part.toLowerCase()
+                        } else {
+                            camel += part[0].toUpperCase() + part.slice(1).toLowerCase()
+                        }
+                    }
+
+                    if (!generatedIdMap[camel]) {
+                        generatedIdMap[camel] = 2
+                        return camel
+                    }
+
+                    const index = generatedIdMap[camel]++
+                    return camel + index
+                }
+
+                function convertLinkedMockup(linkedRaw) {
+                    const sizeValue = linkedRaw.scale * 20
+                    const angleOfRotation = linkedRaw.outerRotation
+                    const angleValue = angleOfRotation * 180 / Math.PI
+                    const layerValue = linkedRaw.renderOnTop ? 1 : 0
+
+                    const sineOfRotation = Math.sin(angleOfRotation)
+                    const cosineOfRotation = Math.cos(angleOfRotation)
+
+                    const orbitAngle = linkedRaw.innerRotation - angleOfRotation + Math.PI * 0.5
+                    const orbitRadius = linkedRaw.offset
+
+                    const localPositionX = Math.sin(orbitAngle) * orbitRadius
+                    const localPositionY = -Math.cos(orbitAngle) * orbitRadius
+
+                    const worldPositionX = cosineOfRotation * localPositionX - sineOfRotation * localPositionY
+                    const worldPositionY = sineOfRotation * localPositionX + cosineOfRotation * localPositionY
+
+                    const xValue = worldPositionX * 10
+                    const yValue = worldPositionY * 10
+
+                    return {
+                        TYPE: null,
+                        REFERENCE_ID: linkedRaw.mockupId,
+                        POSITION: {
+                            SIZE: sizeValue,
+                            LAYER: layerValue,
+                            ANGLE: angleValue,
+                            X: xValue,
+                            Y: yValue
+                        }
+                    }
+                }
+
+                function convertGunMockup(cannonRaw) {
+                    // no idea why length and width are swapped in mockups, but they are
+                    const lengthValue = cannonRaw.width * 10
+                    const widthValue = cannonRaw.height * 10
+                    
+                    const aspectValue = cannonRaw.slant
+
+                    const angleValue = cannonRaw.rotation * 180 / Math.PI
+
+                    const angleOfRotation = cannonRaw.rotation
+                    const sineOfRotation = Math.sin(angleOfRotation)
+                    const cosineOfRotation = Math.cos(angleOfRotation)
+
+                    const convertedX = Math.sin(cannonRaw.circleOffset - angleOfRotation + Math.PI * 0.5) * cannonRaw.xOffset
+                    const convertedY = -Math.cos(cannonRaw.circleOffset - angleOfRotation + Math.PI * 0.5) * cannonRaw.xOffset
+
+                    const scaledPositionX = cosineOfRotation * convertedX - sineOfRotation * convertedY
+                    const scaledPositionY = sineOfRotation * convertedX + cosineOfRotation * convertedY
+
+                    const xValue = scaledPositionX * 10
+                    const yValue = scaledPositionY * 10
+
+                    return {
+                        POSITION: {
+                            LENGTH: lengthValue,
+                            WIDTH: widthValue,
+                            ANGLE: angleValue,
+                            ASPECT: aspectValue,
+                            X: xValue,
+                            Y: yValue
+                        }
+                    }
+                }
+
+                for (const raw of parsedMockupList) {
+                    const labelText = raw.name == "" ? "emptyName" + raw.name : raw.name
+                    const generatedId = createIdFromLabel(labelText)
+                    mockupIdToGeneratedId[raw.mockupId] = generatedId
+                }
+
+                for (const raw of parsedMockupList) {
+                    const turretList = []
+                    for (const linked of raw.linkedMockups || []) {
+                        turretList.push(convertLinkedMockup(linked))
+                    }
+
+                    const gunList = []
+                    for (const gun of raw.cannons || []) {
+                        gunList.push(convertGunMockup(gun))
+                    }
+
+                    const obj = {
+                        mockupId: raw.mockupId,
+                        id: mockupIdToGeneratedId[raw.mockupId],
+                        SIZE: raw.entity['entityType'],
+                        STAT_NAMES: raw.entity['shootsType'],
+                        LABEL: raw.name,
+                        COLOR: raw.color,
+                        SHAPE: raw.shapeKind == 2048 ? raw.entity['path'] : raw.shapeKind > 1024 ? -(raw.shapeKind - 1024) : (raw.shapeKind > 512 ? raw.shapeKind - 512 : raw.shapeKind),
+                        GUNS: gunList,
+                        TURRETS: turretList
+                    }
+
+                    convertedList.push(obj)
+                }
+
+                for (const entry of convertedList) {
+                    for (const turret of entry.TURRETS) {
+                        const ref = turret.REFERENCE_ID
+                        turret.TYPE = mockupIdToGeneratedId[ref] || null
+                    }
+                }
+
+                for (const entry of convertedList) {
+                    for (const turret of entry.TURRETS) {
+                        delete turret.REFERENCE_ID
+                    }
+                }
+
+                return convertedList
+            }
+
+            function convertNumberToReadableString(inputNumber) {
+                if (decimalSnapping) {
+                    const snapTolerance = 1e-4
+
+                    function snapInteger(value) {
+                        const nearest = Math.round(value * 10) / 10
+                        if (Math.abs(value - nearest) < snapTolerance) return nearest
+                        return null
+                    }
+
+                    const snapped = snapInteger(inputNumber)
+                    if (snapped !== null) return String(snapped)
+                }
+                
+                if (!mathReadability) return String(inputNumber)
+
+                function tryBase(value, baseValue, label) {
+                    const ratio = value / baseValue
+                    const snappedRatio = snapInteger(ratio)
+                    if (snappedRatio === null) return null
+                    if ( snappedRatio === 0 ) return null
+                    return snappedRatio + " * " + label
+                }
+
+                const directPi = tryBase(inputNumber, Math.PI, "Math.PI")
+                if (directPi) return directPi
+
+                const directSqrt2 = tryBase(inputNumber, Math.SQRT2, "Math.SQRT2")
+                if (directSqrt2) return directSqrt2
+
+                const directSqrtHalf = tryBase(inputNumber, Math.SQRT1_2, "Math.SQRT1_2")
+                if (directSqrtHalf) return directSqrtHalf
+
+                const maximumRadical = 50
+                for (let r = 2; r <= maximumRadical; r++) {
+                    const v = Math.sqrt(r)
+                    const hit = tryBase(inputNumber, v, "Math.sqrt(" + r + ")")
+                    if (hit) return hit
+                }
+
+                for (let r = 2; r <= maximumRadical; r++) {
+                    const v = Math.PI * Math.sqrt(r)
+                    const hit = tryBase(inputNumber, v, "Math.PI * Math.sqrt(" + r + ")")
+                    if (hit) return hit
+                }
+
+                for (let a = 2; a <= maximumRadical; a++) {
+                    for (let b = a; b <= maximumRadical; b++) {
+                        const v = Math.sqrt(a) * Math.sqrt(b)
+                        const hit = tryBase(inputNumber, v, "Math.sqrt(" + a + ") * Math.sqrt(" + b + ")")
+                        if (hit) return hit
+                    }
+                }
+
+                let maximumDenominator = 1000
+                for (let d = 2; d <= maximumDenominator; d++) {
+                    const rawNumerator = inputNumber * d
+                    const snappedNumerator = snapInteger(rawNumerator)
+                    if (snappedNumerator !== null) return snappedNumerator + "/" + d
+                }
+
+                return String(inputNumber)
+            }
+
+            function convertedMockupToDefinition(convertedMockup) {
+                const id = convertedMockup.id
+
+                let gunText = ""
+                if (convertedMockup.GUNS.length === 0) {
+                    gunText = "[]"
+                } else {
+                    const gunLines = []
+                    for (const gun of convertedMockup.GUNS) {
+                        let t = "\t\t{\n"
+                        t += "\t\t\tPOSITION: {\n"
+                        t += "\t\t\t\tLENGTH: " + convertNumberToReadableString(gun.POSITION.LENGTH) + ",\n"
+                        t += "\t\t\t\tWIDTH: " + convertNumberToReadableString(gun.POSITION.WIDTH) + ",\n"
+                        t += "\t\t\t\tASPECT: " + convertNumberToReadableString(gun.POSITION.ASPECT) + ",\n"
+                        t += "\t\t\t\tX: " + convertNumberToReadableString(gun.POSITION.X) + ",\n"
+                        t += "\t\t\t\tY: " + convertNumberToReadableString(gun.POSITION.Y) + ",\n"
+                        t += "\t\t\t\tANGLE: " + convertNumberToReadableString(gun.POSITION.ANGLE) + ",\n"
+                        t += "\t\t\t}\n"
+                        t += "\t\t}"
+                        gunLines.push(t)
+                    }
+                    gunText = "[\n" + gunLines.join(",\n") + "\n\t]"
+                }
+                
+                let turretText = ""
+                if (convertedMockup.TURRETS.length === 0) {
+                    turretText = "[]"
+                } else {
+                    const turretLines = []
+                    for (const turret of convertedMockup.TURRETS) {
+                        let t = "\t\t{\n"
+                        t += "\t\t\tTYPE: " + JSON.stringify(turret.TYPE) + ",\n"
+                        t += "\t\t\tPOSITION: {\n"
+                        t += "\t\t\t\tSIZE: " + convertNumberToReadableString(turret.POSITION.SIZE) + ",\n"
+                        t += "\t\t\t\tX: " + convertNumberToReadableString(turret.POSITION.X) + ",\n"
+                        t += "\t\t\t\tY: " + convertNumberToReadableString(turret.POSITION.Y) + ",\n"
+                        t += "\t\t\t\tANGLE: " + convertNumberToReadableString(turret.POSITION.ANGLE) + ",\n"
+                        t += "\t\t\t\tLAYER: " + convertNumberToReadableString(turret.POSITION.LAYER) + ",\n"
+                        t += "\t\t\t}\n"
+                        t += "\t\t}"
+                        turretLines.push(t)
+                    }
+                    turretText = "[\n" + turretLines.join(",\n") + "\n\t]"
+                }
+
+                let output = ""
+                output += "Class." + id + " = {\n"
+                output += "\tLABEL: " + JSON.stringify(convertedMockup.LABEL) + ",\n"
+                output += "\tSIZE: " + convertNumberToReadableString(convertedMockup.SIZE) + ",\n",
+                output += "\tSTAT_NAMES: " + JSON.stringify(convertedMockup.STAT_NAMES) + ",\n",
+                output += "\tCOLOR: " + JSON.stringify(convertedMockup.COLOR) + ",\n"
+                output += "\tSHAPE: " + JSON.stringify(convertedMockup.SHAPE) + ",\n"
+                output += "\tGUNS: " + gunText + ",\n"
+                output += "\tTURRETS: " + turretText + "\n"
+                output += "}"
+
+                return output
+            }
+
+            function fullConvert(inputText) {
+                if (!uploadedFileText) return
+
+	            const convertedTextArray = []
+                const tokens = tokenizePythonLikeMockups(inputText)
+                const parsed = parsePythonLikeMockups(tokens)
+                const converted = convertParsedMockups(parsed)
+
+                for (const convertedMockup of converted) {
+                    convertedTextArray.push(convertedMockupToDefinition(convertedMockup))
+                }
+
+                const fileContent = convertedTextArray.join("\n\n")
+
+                const blob = new Blob([fileContent], { type: "text/javascript" })
+
+                const link = document.createElement("a")
+                link.href = URL.createObjectURL(blob)
+                link.download = "mockups.js"
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                URL.revokeObjectURL(link.href)
+            }
+
+            let uploadedFileText = null
+
+            const fileUpload = document.getElementById("fileUpload")
+            const submitButton = document.getElementById("submitButton")
+            
+            fileUpload.addEventListener("change", () => {
+                let file = event.target.files[0]
+                if (!file) return
+
+                let reader = new FileReader()
+                reader.onload = e => {
+                    uploadedFileText = e.target.result
+                }
+                reader.readAsText(file)
+            })
+            
+            submitButton.addEventListener("click", () => {
+                if (!uploadedFileText) {
+                    return
+                }
+
+               fullConvert(uploadedFileText)
+            })
+
+        </script>
+    </body>
+</html>
