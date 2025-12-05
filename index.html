@@ -387,6 +387,13 @@
                         TURRETS: turretList
                     }
 
+                    for (const upgrade of raw.upgrades) {
+                        obj[`UPGRADES_TIER_${upgrade.rank}`] ??= []
+                        obj[`UPGRADES_TIER_${upgrade.rank}`].push({
+                            rawId: upgrade.mockupId
+                        })
+                    }
+
                     convertedList.push(obj)
                 }
 
@@ -398,11 +405,22 @@
                 }
 
                 for (const entry of convertedList) {
+                    for (const propertyName in entry) {
+                        if (propertyName.startsWith("UPGRADES_TIER_")) {
+                            for (let i = 0; i < entry[propertyName].length; i++) {
+                                let raw = entry[propertyName][i].rawId
+                                entry[propertyName][i] = mockupIdToGeneratedId[raw] || null
+                            }
+                        }
+                    }
+                }
+
+                for (const entry of convertedList) {
                     for (const turret of entry.TURRETS) {
                         delete turret.REFERENCE_ID
                     }
                 }
-
+                
                 return convertedList
             }
 
@@ -542,7 +560,14 @@
                 output += "\tCOLOR: " + JSON.stringify(Array.isArray(convertedMockup.COLOR) && convertCustomColorsToHex ? rgbTupleToHex(convertedMockup.COLOR) : convertedMockup.COLOR) + ",\n"
                 output += "\tSHAPE: " + JSON.stringify(convertedMockup.SHAPE) + ",\n"
                 output += "\tGUNS: " + gunText + ",\n"
-                output += "\tTURRETS: " + turretText + "\n"
+                output += "\tTURRETS: " + turretText + ",\n"
+                for (const propertyName in convertedMockup) {
+                    if (propertyName.startsWith("UPGRADES_TIER_")) {
+                        const upgradeList = convertedMockup[propertyName]
+                        const formattedList = "[ " + upgradeList.map(x => JSON.stringify(x)).join(", ") + " ]"
+                        output += "\t" + propertyName + ": " + formattedList + ",\n"
+                    }
+                }
                 output += "}"
 
                 return output
