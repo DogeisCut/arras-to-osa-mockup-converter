@@ -411,7 +411,7 @@
                     const snapTolerance = 1e-4
 
                     function snapInteger(value) {
-                        const nearest = Math.round(value * 10) / 10
+                        const nearest = Math.round(value * 100) / 100
                         if (Math.abs(value - nearest) < snapTolerance) return nearest
                         return null
                     }
