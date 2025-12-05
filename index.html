@@ -538,7 +538,7 @@
                 output += "Class." + id + " = {\n"
                 output += "\tLABEL: " + JSON.stringify(convertedMockup.LABEL) + ",\n"
                 output += "\tSIZE: " + convertNumberToReadableString(convertedMockup.SIZE) + ",\n",
-                output += "\tSTAT_NAMES: " + JSON.stringify(statNames[convertedMockup.STAT_NAMES]) + ",\n",
+                output += "\tSTAT_NAMES: " + statNames[convertedMockup.STAT_NAMES] + ",\n",
                 output += "\tCOLOR: " + JSON.stringify(Array.isArray(convertedMockup.COLOR) && convertCustomColorsToHex ? rgbTupleToHex(convertedMockup.COLOR) : convertedMockup.COLOR) + ",\n"
                 output += "\tSHAPE: " + JSON.stringify(convertedMockup.SHAPE) + ",\n"
                 output += "\tGUNS: " + gunText + ",\n"
