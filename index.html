@@ -359,7 +359,7 @@
                 }
 
                 for (const raw of parsedMockupList) {
-                    const labelText = raw.name == "" ? "emptyName" + raw.name : raw.name
+                    const labelText = raw.name == "" ? "unnamed" + raw.name : raw.name
                     const generatedId = createIdFromLabel(labelText)
                     mockupIdToGeneratedId[raw.mockupId] = generatedId
                 }
