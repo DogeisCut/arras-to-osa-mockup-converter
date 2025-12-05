@@ -371,7 +371,7 @@
                         STAT_NAMES: raw.entity['shootsType'],
                         LABEL: raw.name,
                         COLOR: raw.color,
-                        SHAPE: raw.shapeKind == 2048 ? raw.entity['path'] : raw.shapeKind > 1024 ? -(raw.shapeKind - 1024) : (raw.shapeKind > 512 ? raw.shapeKind - 512 : raw.shapeKind),
+                        SHAPE: raw.shapeKind == 2048 ? raw.entity['path'] : raw.shapeKind > 1024 ? -(raw.shapeKind - 1024) : (raw.shapeKind > 512 ? (raw.shapeKind - 512) + 0.5 : raw.shapeKind),
                         GUNS: gunList,
                         TURRETS: turretList
                     }
