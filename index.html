@@ -5,10 +5,10 @@
     <body>
         <table>
             <tr>
-                <th colspan="2">DogeisCut's Arras to OSA Mockup Converter</th>
+                <th colspan="3">DogeisCut's Arras to OSA Mockup Converter</th>
             </tr>
             <tr>
-                <td colspan="2">
+                <td colspan="3">
                     <label for="fileUpload">Input Python Mockups</label>
                     <input id="fileUpload" type="file">
                 </td>
@@ -24,6 +24,11 @@
                     <!--TODO: control over which math functions it tries to use.-->
                     <input id="optionMathReadability" type="checkbox">
                     <label for="optionMathReadability">Math Readability</label>
+                </td>
+                <td>
+                    <!--Converts [R: number, G: number, B: number] tuples to "#RRGGBB"-->
+                    <input checked id="optionConvertCustomColorsToHex" type="checkbox">
+                    <label for="optionConvertCustomColorsToHex">Convert Custom Colors To Hex</label>
                 </td>
             </tr>
             <tr>
@@ -43,17 +48,23 @@
                 You will recive a JS file with skeleton definitions based on the mockups.
             */
 
+
             const optionDecimalSnapping = document.getElementById("optionDecimalSnapping")
             const optionMathReadability = document.getElementById("optionMathReadability")
+            const optionConvertCustomColorsToHex = document.getElementById("optionConvertCustomColorsToHex")
 
             let decimalSnapping = false
             let mathReadability = false
+            let convertCustomColorsToHex = true
 
             optionDecimalSnapping.addEventListener("change", () => {
                 decimalSnapping = optionDecimalSnapping.checked
             });
             optionMathReadability.addEventListener("change", () => {
                 mathReadability = optionMathReadability.checked
+            });
+            optionConvertCustomColorsToHex.addEventListener("change", () => {
+                convertCustomColorsToHex = optionConvertCustomColorsToHex.checked
             });
 
 
@@ -504,12 +515,31 @@
                     turretText = "[\n" + turretLines.join(",\n") + "\n\t]"
                 }
 
+                const statNames = {
+                    0: "statnames.bullet",
+                    1: "statnames.smasher",
+                    2: "statnames.drone",
+                    3: "statnames.necro",
+                    4: "statnames.swarm",
+                    5: "statnames.trap",
+                    6: "statnames.mixed",
+                    7: "statnames.whirlwind" // technically unused
+                }
+
+                function rgbTupleToHex(rgb) {
+                    for (let i = 0; i < 3; i++) rgb[i] = Math.max(0, Math.min(255, Math.round(rgb[i])));
+                    const redHex = rgb[0].toString(16).padStart(2, '0');
+                    const greenHex = rgb[1].toString(16).padStart(2, '0');
+                    const blueHex = rgb[2].toString(16).padStart(2, '0');
+                    return `#${redHex}${greenHex}${blueHex}`.toUpperCase();
+                }
+
                 let output = ""
                 output += "Class." + id + " = {\n"
                 output += "\tLABEL: " + JSON.stringify(convertedMockup.LABEL) + ",\n"
                 output += "\tSIZE: " + convertNumberToReadableString(convertedMockup.SIZE) + ",\n",
-                output += "\tSTAT_NAMES: " + JSON.stringify(convertedMockup.STAT_NAMES) + ",\n",
-                output += "\tCOLOR: " + JSON.stringify(convertedMockup.COLOR) + ",\n"
+                output += "\tSTAT_NAMES: " + JSON.stringify(statNames[convertedMockup.STAT_NAMES]) + ",\n",
+                output += "\tCOLOR: " + JSON.stringify(Array.isArray(convertedMockup.COLOR) && convertCustomColorsToHex ? rgbTupleToHex(convertedMockup.COLOR) : convertedMockup.COLOR) + ",\n"
                 output += "\tSHAPE: " + JSON.stringify(convertedMockup.SHAPE) + ",\n"
                 output += "\tGUNS: " + gunText + ",\n"
                 output += "\tTURRETS: " + turretText + "\n"
