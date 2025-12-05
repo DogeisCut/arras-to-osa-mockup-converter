@@ -8,10 +8,22 @@
                 <th colspan="3">DogeisCut's Arras to OSA Mockup Converter</th>
             </tr>
             <tr>
+                <th colspan="3">Actions</th>
+            </tr>
+            <tr>
                 <td colspan="3">
-                    <label for="fileUpload">Input Python Mockups</label>
+                    <!--Plans to support other file formats are brewing.-->
                     <input id="fileUpload" type="file">
+                    <label for="fileUpload">Input Mockups</label>
                 </td>
+            </tr>
+            <tr>
+                <td colspan="3">
+                    <button id="submitButton">Submit</button>
+                </td>
+            </tr>
+            <tr>
+                <th colspan="3">Options</th>
             </tr>
             <tr>
                 <td>
@@ -32,8 +44,22 @@
                 </td>
             </tr>
             <tr>
-                <td colspan="3">
-                    <button id="submitButton">Submit</button>
+                <td>
+                    <!--Prefixes the resulting entity IDs.-->
+                    <input id="textOptionPrefix" list="textOptionPrefixList">
+                    <datalist id="textOptionPrefixList">
+                        <option value="">
+                        <option value="mockup_">
+                        <option value="arrasMockup_">
+                        <option value="arras_">
+                        <option value="replacer_">
+                    </datalist>
+                    <label for="textOptionPrefix">ID Prefix</label>
+                </td>
+                <td>
+                    <!--Creates a tree of upgrade pages in the developer class for every mockup.-->
+                    <input id="optionCreateDeveloperUpgrades" type="checkbox">
+                    <label for="optionCreateDeveloperUpgrades">Create Developer Upgrades</label>
                 </td>
             </tr>
         </table>
@@ -52,10 +78,14 @@
             const optionDecimalSnapping = document.getElementById("optionDecimalSnapping")
             const optionMathReadability = document.getElementById("optionMathReadability")
             const optionConvertCustomColorsToHex = document.getElementById("optionConvertCustomColorsToHex")
+            const textOptionPrefix = document.getElementById("textOptionPrefix")
+            const optionCreateDeveloperUpgrades = document.getElementById("optionCreateDeveloperUpgrades")
 
             let decimalSnapping = false
             let mathReadability = false
             let convertCustomColorsToHex = true
+            let prefix = ""
+            let createDeveloperUpgrades = false
 
             optionDecimalSnapping.addEventListener("change", () => {
                 decimalSnapping = optionDecimalSnapping.checked
@@ -65,6 +95,12 @@
             });
             optionConvertCustomColorsToHex.addEventListener("change", () => {
                 convertCustomColorsToHex = optionConvertCustomColorsToHex.checked
+            });
+            textOptionPrefix.addEventListener("change", () => {
+                prefix = textOptionPrefix.value
+            });
+            optionCreateDeveloperUpgrades.addEventListener("change", () => {
+                createDeveloperUpgrades = optionCreateDeveloperUpgrades.checked
             });
 
 
@@ -518,8 +554,9 @@
                 } else {
                     const turretLines = []
                     for (const turret of convertedMockup.TURRETS) {
+                        if (turret.TYPE === null) continue
                         let t = "\t\t{\n"
-                        t += "\t\t\tTYPE: " + JSON.stringify(turret.TYPE) + ",\n"
+                        t += "\t\t\tTYPE: " + JSON.stringify(prefix + turret.TYPE) + ",\n"
                         t += "\t\t\tPOSITION: {\n"
                         t += "\t\t\t\tSIZE: " + convertNumberToReadableString(turret.POSITION.SIZE) + ",\n"
                         t += "\t\t\t\tX: " + convertNumberToReadableString(turret.POSITION.X) + ",\n"
@@ -553,7 +590,7 @@
                 }
 
                 let output = ""
-                output += "Class." + id + " = {\n"
+                output += "Class." + prefix + id + " = {\n"
                 output += "\tLABEL: " + JSON.stringify(convertedMockup.LABEL) + ",\n"
                 output += "\tSIZE: " + convertNumberToReadableString(convertedMockup.SIZE) + ",\n",
                 output += "\tSTAT_NAMES: " + statNames[convertedMockup.STAT_NAMES] + ",\n",
@@ -564,11 +601,14 @@
                 for (const propertyName in convertedMockup) {
                     if (propertyName.startsWith("UPGRADES_TIER_")) {
                         const upgradeList = convertedMockup[propertyName]
-                        const formattedList = "[ " + upgradeList.map(x => JSON.stringify(x)).join(", ") + " ]"
+                        const formattedList = "[ " + upgradeList.filter((x) => x !== null).map(x => JSON.stringify(prefix + x)).join(", ") + " ]"
                         output += "\t" + propertyName + ": " + formattedList + ",\n"
                     }
                 }
                 output += "}"
+                if (createDeveloperUpgrades) {
+                    output += "\nupgrades.push(" + JSON.stringify(prefix + id) + ")\n"
+                }
 
                 return output
             }
@@ -576,13 +616,51 @@
             function fullConvert(inputText) {
                 if (!uploadedFileText) return
 
-	            const convertedTextArray = []
+	            const convertedTextArray = ["const { statnames } = require('../constants.js')"]
+
+                if (createDeveloperUpgrades) {
+                    convertedTextArray.push(
+`const pages = function(pageRootName, tankEntryList) {
+	var tankEntryArray = tankEntryList
+	var totalEntryCount = tankEntryArray.length, offsetIndex = 0, pageIndex = 1
+	if (totalEntryCount === 0) return null
+	var currentPageName, previousPageObject, currentPageObject, firstPageObject
+	while (offsetIndex < totalEntryCount) {
+		currentPageName = pageRootName + "/PAGE " + pageIndex++
+		Class[currentPageName] = currentPageObject = {
+			"PARENT": [Class.genericTank],
+			"SHAPE": 5,
+			"LABEL": currentPageName,
+			"UPGRADES_TIER_0": tankEntryArray.slice(offsetIndex, offsetIndex + 10)
+		}
+		offsetIndex += 10
+		if (previousPageObject) {
+			currentPageObject.UPGRADES_TIER_0.push(previousPageObject)
+			previousPageObject.UPGRADES_TIER_0.push(currentPageObject)
+		} else {
+			firstPageObject = currentPageObject
+		}
+		previousPageObject = currentPageObject
+	}
+	previousPageObject.UPGRADES_TIER_0.push(firstPageObject)
+	firstPageObject.UPGRADES_TIER_0.splice(firstPageObject.UPGRADES_TIER_0.length - 1, 0, previousPageObject)
+	return firstPageObject
+}
+
+const upgrades = []`
+                    )
+                }
+
                 const tokens = tokenizePythonLikeMockups(inputText)
                 const parsed = parsePythonLikeMockups(tokens)
                 const converted = convertParsedMockups(parsed)
 
                 for (const convertedMockup of converted) {
                     convertedTextArray.push(convertedMockupToDefinition(convertedMockup))
+                }
+
+                if (createDeveloperUpgrades) {
+                    convertedTextArray.push("Class.developer.UPGRADES_TIER_0.push(pages(\"Mockups\", upgrades))")
                 }
 
                 const fileContent = convertedTextArray.join("\n\n")
