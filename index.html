@@ -537,7 +537,7 @@
                         t += "\t\t\tPOSITION: {\n"
                         t += "\t\t\t\tLENGTH: " + convertNumberToReadableString(gun.POSITION.LENGTH) + ",\n"
                         t += "\t\t\t\tWIDTH: " + convertNumberToReadableString(gun.POSITION.WIDTH) + ",\n"
-                        t += "\t\t\t\tASPECT: " + convertNumberToReadableString(gun.POSITION.ASPECT) + ",\n"
+                        t += "\t\t\t\tASPECT: " + convertNumberToReadableString(gun.POSITION.ASPECT === 0 ? 1 : gun.POSITION.ASPECT) + ",\n"
                         t += "\t\t\t\tX: " + convertNumberToReadableString(gun.POSITION.X) + ",\n"
                         t += "\t\t\t\tY: " + convertNumberToReadableString(gun.POSITION.Y) + ",\n"
                         t += "\t\t\t\tANGLE: " + convertNumberToReadableString(gun.POSITION.ANGLE) + ",\n"
