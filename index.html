@@ -12,7 +12,6 @@
             </tr>
             <tr>
                 <td colspan="3">
-                    <!--Plans to support other file formats are brewing.-->
                     <input id="fileUpload" type="file">
                     <label for="fileUpload">Input Mockups</label>
                 </td>
@@ -70,7 +69,7 @@
                 ARRAS TO OSA MOCKUP CONVERTER
                 By: Dogeiscut
                 
-                Instructions: Upload a mockup python file with the imports at the top removed, then click submit. 
+                Instructions: Upload a mockup JSON file or Python file (with imports removed), then click submit.
                 You will recive a JS file with skeleton definitions based on the mockups.
             */
 
@@ -295,9 +294,65 @@
                 return parsedList
             }
 
+            function parseJsonMockups(inputText) {
+                let data
+                try {
+                    data = JSON.parse(inputText)
+                } catch (error) {
+                    // TODO: error display
+                }
+
+                let entries
+                if (Array.isArray(data)) {
+                    entries = data
+                } else if (data && typeof data === "object" && "mockupIndex" in data) {
+                    entries = [data]
+                } else {
+                    entries = Object.values(data)
+                }
+
+                return entries.map(entry => ({
+                    type: "Mockup",
+                    mockupId: entry.mockupIndex,
+                    name: entry.name ?? "",
+                    color: entry.color,
+                    shapeKind: entry.shape ?? 0,
+                    upgrades: (entry.upgrades || []).map(upgrade => ({
+                        rank: upgrade.tier,
+                        mockupId: upgrade.mockupIndex
+                    })),
+                    cannons: (entry.guns || []).map(gun => ({
+                        xOffset: gun.x,
+                        circleOffset: gun.y,
+                        width: gun.length,
+                        height: gun.width,
+                        slant: gun.aspect,
+                        rotation: gun.angle
+                    })),
+                    linkedMockups: (entry.turrets || []).map(turret => ({
+                        mockupId: turret.mockupIndex,
+                        scale: turret.scale,
+                        offset: turret.offset,
+                        innerRotation: turret.direction,
+                        renderOnTop: !!turret.renderOnTop,
+                        outerRotation: turret.angle
+                    })),
+                    entity: {
+                        entityType: entry.entityType,
+                        shootsType: entry.shootsType,
+                        path: entry.path
+                    }
+                }))
+            }
+
+            function looksLikeJson(inputText) {
+                const firstCharacter = inputText.trimStart()[0]
+                return firstCharacter === "{" || firstCharacter === "["
+            }
+
             function convertParsedMockups(parsedMockupList) {
                 const convertedList = []
-                const generatedIdMap = {}
+                const generatedIdMap = Object.create(null) // constructor had a bug LOL
                 const mockupIdToGeneratedId = {}
 
                 function createIdFromLabel(labelText) {
@@ -317,11 +372,12 @@
                         }
                     }
 
-                    if (!generatedIdMap[camel]) {
+                    if (!generatedIdMap[camel] && !(camel in Object.prototype)) {
                         generatedIdMap[camel] = 2
                         return camel
                     }
 
+                    generatedIdMap[camel] ??= 2
                     const index = generatedIdMap[camel]++
                     return camel + index
                 }
@@ -651,8 +707,9 @@ const upgrades = []`
                     )
                 }
 
-                const tokens = tokenizePythonLikeMockups(inputText)
-                const parsed = parsePythonLikeMockups(tokens)
+                const parsed = looksLikeJson(inputText)
+                    ? parseJsonMockups(inputText)
+                    : parsePythonLikeMockups(tokenizePythonLikeMockups(inputText))
                 const converted = convertParsedMockups(parsed)
 
                 for (const convertedMockup of converted) {
