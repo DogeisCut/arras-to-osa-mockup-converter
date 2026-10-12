@@ -517,15 +517,15 @@
             }
 
             function convertNumberToReadableString(inputNumber) {
+                const snapTolerance = 1e-4
+
+                function snapInteger(value) {
+                    const nearest = Math.round(value * 100) / 100
+                    if (Math.abs(value - nearest) < snapTolerance) return nearest
+                    return null
+                }
+                
                 if (decimalSnapping) {
-                    const snapTolerance = 1e-4
-
-                    function snapInteger(value) {
-                        const nearest = Math.round(value * 100) / 100
-                        if (Math.abs(value - nearest) < snapTolerance) return nearest
-                        return null
-                    }
-
                     const snapped = snapInteger(inputNumber)
                     if (snapped !== null) return String(snapped)
                 }
